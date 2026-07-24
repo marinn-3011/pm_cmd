@@ -1,3 +1,5 @@
+#include "pm.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -366,7 +368,7 @@ int main(int argc, char *argv[]){
 	printf("\n\e[1;32m[List of Projects]\e[0m\n\n");
 	listdir(proj_path);
     }
-    else if (strcmp(argv[1],"enter")==0){
+    else if (strcmp(argv[1],"enter")==0 && argc>2){
 	printf("Opening %s..\n", folder_name);
 	enterdir(path, t);
     }
