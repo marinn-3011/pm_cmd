@@ -40,7 +40,7 @@ int newproj(const char* path, const char* folder_name, const char *ext){
     else {
         printf("Failed to create folder or it already exists.\n");
         perror("Error");
-	return 1;
+		return 1;
     }
 
     size_t path_len = strlen(path)+1;
@@ -77,16 +77,17 @@ int newproj(const char* path, const char* folder_name, const char *ext){
         printf("Error in creating code file. Exiting..\n");
         free(file_path);
         return 1;
-	    }
+    }
     else{
         printf("Main created successfully.\n");
         fclose(fp);
     }
+    
     free(file_path);
     return 0;
 }
 
-int viewdir(const char *base_path, int indent_level){ // Recursive list
+int viewdir(const char *base_path, int indent_level, int recursive){ // List directory
 	DIR *dir = opendir(base_path);
 	struct dirent *entry;
 	struct stat statbuf;
@@ -100,7 +101,7 @@ int viewdir(const char *base_path, int indent_level){ // Recursive list
 	while ((entry=readdir(dir)) != NULL){
 		// Skip . and ..
 		if (strcmp(entry->d_name, ".")==0 || strcmp(entry->d_name, "..")==0){
-		continue;
+			continue;
 		}
 
 		// Dynamically allocate buffer space for the path string
@@ -115,9 +116,11 @@ int viewdir(const char *base_path, int indent_level){ // Recursive list
 		if (stat(path, &statbuf) == -1){
 			continue;
 		}
-
-		for(int i=0; i<indent_level; i++){
-			printf("    ");
+		
+		if (recursive){
+			for(int i=0; i<indent_level; i++){
+				printf("    ");
+			}
 		}
 		printf("-");
 
@@ -125,13 +128,15 @@ int viewdir(const char *base_path, int indent_level){ // Recursive list
 		if (S_ISDIR(statbuf.st_mode)){
 			printf("\e[34m[%s]\e[0m\n", entry->d_name);
 
-			viewdir(path, indent_level+1);
+			if (recursive){
+				viewdir(path, indent_level+1, recursive);
+			}
+				
 		}
 		else printf("%s\n", entry->d_name);
 
 		free(path);
 	}
-	printf("\n");
 
 	closedir(dir);
 	return 0;
@@ -189,48 +194,6 @@ int removedir(const char *base_path){ // Recursive remove
 	return ret;
 }
 
-void listdir(const char *base_path){ // Non-recursive list
-	DIR *dir = opendir(base_path);
-	struct dirent *entry;
-	struct stat statbuf;
-	size_t path_len = strlen(base_path);
-
-	if (dir==NULL){
-		printf("\e[31mCould not access the projects folder. Exiting..\e[0m\n");
-		return;
-	}
-
-	while ((entry=readdir(dir)) != NULL){
-		// Skip . and ..
-		if (strcmp(entry->d_name, ".")==0 || strcmp(entry->d_name, "..")==0){
-		continue;
-		}
-
-		// Dynamically allocate buffer space for the path string
-		size_t len = path_len + strlen(entry->d_name) + 2;
-		char *path = malloc(len);
-
-		if (!path) return;
-
-		snprintf(path, len, "%s/%s", base_path, entry->d_name);
-
-		//Skip if no metadata
-		if (stat(path, &statbuf) == -1){
-			continue;
-		}
-
-
-		if (S_ISDIR(statbuf.st_mode)){
-			printf("-\e[34m[%s]\e[0m\n", entry->d_name);
-		}
-		else printf("-%s\n", entry->d_name);
-
-		free(path);
-	}
-	printf("\n");
-
-	closedir(dir);
-}
 
 void enterdir(const char *base_path, const int t){ // Open the directory in file manager
 	struct stat statbuf;
@@ -266,26 +229,49 @@ int main(int argc, char *argv[]){
 	char *folder_name = strdup(folder_prefix); // folder copy on heap
     char ext[10]="";  // file extension for main
 
+	/* Handle options */
+	int opt;
+    int opterr = 0;
+    int t = 0, l = 0, r = 0;
+    char *lang=NULL;
 
-    if (argc<2){
+    while ((opt=getopt(argc, argv, "l:tr")) != -1){
+		switch(opt){
+		    case 'l':
+				l = 1;
+				lang = malloc((strlen(optarg)+1)*sizeof(char)); 
+				strcpy(lang, optarg);
+				break;
+		    case 't':
+				t = 1;
+				break;
+			case 'r':
+				r = 1;
+				break;
+			case '?':
+				break;
+		}
+    }
+	
+    if (argc-optind<1){
         printf("Invalid Usage. \e[32m[Format: pm <command> <proj_name> <options>]\e[0m\n");
         return 1;
     }
 
-    if (argc>2){
-		if (*argv[2] == '\0'){
+    if (argc-optind>1){
+		if (*argv[optind+1] == '\0'){
 	    	printf("Project name cannot be empty.\n");
 	    	return 1;
 		}
 		int i=0;
-		while (*(argv[2]+i)){
-	   		if (!isalnum((unsigned char)*(argv[2]+i)) && (*(argv[2]+i) != '_') && (*(argv[2]+i) != '-')){
-			printf("Unsupported characters used in <proj_name>. \e[32m[Use: (a-z), (A-Z), (0-9), (-,_)]\e[0m\n");
-			return 1;
+		while (*(argv[optind+1]+i)){
+	   		if (!isalnum((unsigned char)*(argv[optind+1]+i)) && (*(argv[optind+1]+i) != '_') && (*(argv[optind+1]+i) != '-')){
+				printf("Unsupported characters used in <proj_name>. \e[32m[Use: (a-z), (A-Z), (0-9), (-,_)]\e[0m\n");
+				return 1;
 	    	}
 	    	i++;
 		}
-		if((folder_name=dynstrcat(folder_name, argv[2]))==NULL){
+		if((folder_name=dynstrcat(folder_name, argv[optind+1]))==NULL){
 			free(path);
 			return 1;
 		}
@@ -296,28 +282,8 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
-    int opt;
-    int opterr = 0;
-    int t = 0, l = 0;
-    char *lang=NULL;
 
-    while ((opt=getopt(argc-2, &argv[2], "+l:t")) != -1){
-		switch(opt){
-		    case 'l':
-				l = 1;
-				lang = malloc((strlen(optarg)+1)*sizeof(char)); 
-				strcpy(lang, optarg);
-				break;
-		    case 't':
-				t = 1;
-				break;
-			case '?':
-				break;
-		}
-    }
-
-
-    if (strcmp(argv[1],"new")==0 && argc>2){
+    if (strcmp(argv[optind],"new")==0 && argc-optind>1){
         if (l){
             if ((strcmp(lang,"c")==0) || (strcmp(lang,"C")==0))
                 strcpy(ext, ".c");
@@ -331,52 +297,59 @@ int main(int argc, char *argv[]){
         free(lang);
         return newproj(path, folder_name, ext);
     }
-    else if (strcmp(argv[1],"view")==0 && argc>2){
-	printf("Accessing contents of %s..\n", folder_name);
-	printf("\n\e[1;34m[%s]\e[0m\n\n", folder_name);
-	viewdir(path, 0);
+    
+    else if (strcmp(argv[optind],"view")==0 && argc-optind>1){
+		printf("Accessing contents of %s..\n", folder_name);
+		printf("\n\e[1;34m[%s]\e[0m\n\n", folder_name);
+		viewdir(path, 0, r);
+		printf("\n");
     }
-    else if (strcmp(argv[1], "kill")==0 && argc>2){
-	printf("Searching for %s..\n", folder_name);
-	printf("\n\e[1;34m[%s]\e[0m\n\n", folder_name);
-	int view = viewdir(path, 0);
-	if(!view){
-	    printf("The project \"%s\" will be deleted permanently.\n", folder_name);
-        printf("\e[1;31mARE YOU SURE?[y/n]\e[0m\n");
-        char choice;
-        scanf("%c", &choice);
-        switch (choice){
-			case 'y': case 'Y':
-		    	if (removedir(path)==0){
-		    	    printf("Project removed successfully.\n");
-		    	}
-		    	else{
-				// Prints error message in readable form
-				perror("Error removing directory.");
+    
+    else if (strcmp(argv[optind], "kill")==0 && argc-optind>1){
+		printf("Searching for %s..\n", folder_name);
+		printf("\n\e[1;34m[%s]\e[0m\n\n", folder_name);
+		int view = viewdir(path, 0, 1);
+		if(!view){
+	    	printf("\nThe project \"%s\" will be deleted permanently.\n", folder_name);
+        	printf("\e[1;31mARE YOU SURE?[y/n]\e[0m\n");
+        	char choice;
+        	scanf("%c", &choice);
+        	switch (choice){
+				case 'y': case 'Y':
+		    		if (removedir(path)==0){
+		    		    printf("Project removed successfully.\n");
+		    		}
+		    		else{
+						// Prints error message in readable form
+						perror("Error removing directory.");
 	        	    }
-	 	    	break;
-			case 'n': case 'N':
-      		    printf("Aborting..\n");
-		    	break;
-			default:
-		    	printf("Invalid input given. Aborting..\n");
-	    }
+	 	    		break;
+				case 'n': case 'N':
+      		    	printf("Aborting..\n");
+		    		break;
+				default:
+		    		printf("Invalid input given. Aborting..\n");
+	    	}
 	}
 	else printf("Could not access %s. Exiting..\n", folder_name);
     }
-    else if (strcmp(argv[1],"list")==0){
-	printf("\n\e[1;32m[List of Projects]\e[0m\n\n");
-	listdir(proj_path);
+    
+    else if (strcmp(argv[optind],"list")==0){
+		printf("\n\e[1;32m[List of Projects]\e[0m\n\n");
+		viewdir(proj_path, 0, 0);
+		printf("\n");
     }
-    else if (strcmp(argv[1],"enter")==0 && argc>2){
-	printf("Opening %s..\n", folder_name);
-	enterdir(path, t);
+    
+    else if (strcmp(argv[optind],"enter")==0 && argc-optind>1){
+		printf("Opening %s..\n", folder_name);
+		enterdir(path, t);
     }
+    
     else{
         printf("Invalid command given. \e[32m[Usage: pm <command> <proj_name> <options>]\e[0m\n  \
 The list of commands are:\n  \
     new: Create a new project \e[31m[Requires: proj_name]\e[0m \e[32m[Options: -l <lang>]\e[0m\n  \
-    view: View contents of a project \e[31m[Requires: proj_name]\e[0m\n  \
+    view: View contents of a project \e[31m[Requires: proj_name]\e[0m \e[32m[Options: -r (recursive)]\e[0m\n  \
     kill: Delete a project \e[31m[Requires: proj_name]\e[0m\n  \
     list: List all projets\n  \
     enter: Open a project \e[31m[Requires: proj_name]\e[0m \e[32m[Options: -t (Terminal Mode)]\e[0m\n");
