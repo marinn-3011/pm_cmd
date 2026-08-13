@@ -231,7 +231,7 @@ int main(int argc, char *argv[]){
 
 	/* Handle options */
 	int opt;
-    int opterr = 0;
+    //int opterr = 0; // Unused var
     int t = 0, l = 0, r = 0;
     char *lang=NULL;
 
@@ -321,7 +321,7 @@ int main(int argc, char *argv[]){
 		    		}
 		    		else{
 						// Prints error message in readable form
-						perror("Error removing directory.");
+						perror("Error removing directory");
 	        	    }
 	 	    		break;
 				case 'n': case 'N':
